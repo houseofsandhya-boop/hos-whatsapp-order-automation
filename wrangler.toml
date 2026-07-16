@@ -1,0 +1,20 @@
+name = "hos-whatsapp-order-automation"
+main = "src/index.ts"
+compatibility_date = "2025-04-01"
+
+[triggers]
+crons = ["*/30 * * * *"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "hos-whatsapp-automation"
+database_id = "REPLACE_WITH_CLOUDFLARE_D1_DATABASE_ID"
+
+[vars]
+SHOPIFY_API_VERSION = "2026-07"
+WHATSAPP_GRAPH_VERSION = "v23.0"
+WHATSAPP_TEMPLATE_LANGUAGE = "en_US"
+REMINDER_2D_TEMPLATE = "order_processing_update"
+REMINDER_4D_TEMPLATE = "order_quality_check"
+REMINDER_6D_TEMPLATE = "order_ready_dispatch"
+SHIPPED_TEMPLATE = "order_shipped_tracking"
