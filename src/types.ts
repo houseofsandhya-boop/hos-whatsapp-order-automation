@@ -1,7 +1,9 @@
 export interface Env {
   DB: D1Database;
   SHOPIFY_WEBHOOK_SECRET: string;
-  SHOPIFY_ADMIN_TOKEN: string;
+  SHOPIFY_ADMIN_TOKEN?: string;
+  SHOPIFY_CLIENT_ID?: string;
+  SHOPIFY_CLIENT_SECRET?: string;
   SHOPIFY_STORE_DOMAIN: string;
   SHOPIFY_API_VERSION?: string;
   WHATSAPP_TOKEN: string;

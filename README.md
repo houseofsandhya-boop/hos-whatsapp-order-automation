@@ -29,11 +29,15 @@ Set these with `wrangler secret put`:
 ```bash
 wrangler secret put SHOPIFY_WEBHOOK_SECRET
 wrangler secret put SHOPIFY_ADMIN_TOKEN
+wrangler secret put SHOPIFY_CLIENT_ID
+wrangler secret put SHOPIFY_CLIENT_SECRET
 wrangler secret put SHOPIFY_STORE_DOMAIN
 wrangler secret put WHATSAPP_TOKEN
 wrangler secret put WHATSAPP_PHONE_NUMBER_ID
 wrangler secret put ADMIN_API_KEY
 ```
+
+For Shopify Admin API access, set either `SHOPIFY_ADMIN_TOKEN` from a custom/private admin token, or set both `SHOPIFY_CLIENT_ID` and `SHOPIFY_CLIENT_SECRET` from the Shopify dev dashboard app. The Shopify CI/CD automation token is only for app deployment/config automation and is not used by this Worker at runtime.
 
 `SHOPIFY_STORE_DOMAIN` should look like:
 
@@ -116,6 +120,12 @@ Recent message logs:
 
 ```text
 GET /admin/logs?key=YOUR_ADMIN_API_KEY
+```
+
+Test Shopify API credentials without sending any WhatsApp message:
+
+```text
+GET /admin/test-shopify?key=YOUR_ADMIN_API_KEY&orderId=SHOPIFY_ORDER_ID
 ```
 
 ## Notes

@@ -15,7 +15,8 @@ export async function sendWhatsAppTemplate(
   const language = env.WHATSAPP_TEMPLATE_LANGUAGE || "en_US";
   const url = `https://graph.facebook.com/${graphVersion}/${env.WHATSAPP_PHONE_NUMBER_ID.trim()}/messages`;
 
-  const parameters: TemplateParameter[] = params.map((text) => ({ type: "text", text }));
+  const safeParams = templateName === "hello_world" ? [] : params;
+  const parameters: TemplateParameter[] = safeParams.map((text) => ({ type: "text", text }));
   const payload = {
     messaging_product: "whatsapp",
     to,

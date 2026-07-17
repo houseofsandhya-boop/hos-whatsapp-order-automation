@@ -1,6 +1,6 @@
 import { createImmediateJob, getOrder, logWebhook, markOrderShipped, scheduleReminderJobs, upsertOrder } from "./db";
 import { processDueJobs } from "./jobs";
-import { fetchShopifyOrder, verifyShopifyWebhook } from "./shopify";
+import { extractOrderPhone, fetchShopifyOrder, verifyShopifyWebhook } from "./shopify";
 import type { Env, ShopifyFulfillmentPayload, ShopifyOrderPayload } from "./types";
 import { asOrderId, firstPresent, json } from "./utils";
 import { sendWhatsAppTemplate } from "./whatsapp";
@@ -35,6 +35,29 @@ export default {
       try {
         const providerMessageId = await sendWhatsAppTemplate(env, to, template, []);
         return json({ ok: true, providerMessageId });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return json({ ok: false, error: message }, 502);
+      }
+    }
+
+    if ((request.method === "GET" || request.method === "POST") && url.pathname === "/admin/test-shopify") {
+      if (!isAuthorized(request, env)) return json({ error: "Unauthorized" }, 401);
+      const orderId = url.searchParams.get("orderId");
+      if (!orderId) return json({ error: "Missing ?orderId=SHOPIFY_ORDER_ID" }, 400);
+      try {
+        const order = await fetchShopifyOrder(env, orderId);
+        if (!order) return json({ ok: false, error: "Order not found" }, 404);
+        return json({
+          ok: true,
+          order: {
+            id: order.id,
+            name: order.name,
+            fulfillment_status: order.fulfillment_status ?? null,
+            cancelled_at: order.cancelled_at ?? null,
+            phone: extractOrderPhone(order)
+          }
+        });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         return json({ ok: false, error: message }, 502);

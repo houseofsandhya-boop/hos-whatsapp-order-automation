@@ -1,5 +1,7 @@
 SHOPIFY_WEBHOOK_SECRET="replace-with-shopify-webhook-secret"
-SHOPIFY_ADMIN_TOKEN="shpat_replace_with_admin_api_token"
+SHOPIFY_ADMIN_TOKEN="optional-shpat-admin-api-token"
+SHOPIFY_CLIENT_ID="optional-shopify-dev-dashboard-client-id"
+SHOPIFY_CLIENT_SECRET="optional-shopify-dev-dashboard-client-secret"
 SHOPIFY_STORE_DOMAIN="houseofsandhya.myshopify.com"
 WHATSAPP_TOKEN="replace-with-meta-permanent-access-token"
 WHATSAPP_PHONE_NUMBER_ID="replace-with-whatsapp-phone-number-id"
