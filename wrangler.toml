@@ -8,7 +8,7 @@ crons = ["*/30 * * * *"]
 [[d1_databases]]
 binding = "DB"
 database_name = "hos-whatsapp-automation"
-database_id = "REPLACE_WITH_CLOUDFLARE_D1_DATABASE_ID"
+database_id = "33c2e90a-6241-4c54-a740-75441baf41e8"
 
 [vars]
 SHOPIFY_API_VERSION = "2026-07"
