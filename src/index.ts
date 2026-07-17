@@ -32,8 +32,13 @@ export default {
       const to = url.searchParams.get("to");
       const template = url.searchParams.get("template") || "hello_world";
       if (!to) return json({ error: "Missing ?to=91XXXXXXXXXX" }, 400);
-      const providerMessageId = await sendWhatsAppTemplate(env, to, template, []);
-      return json({ ok: true, providerMessageId });
+      try {
+        const providerMessageId = await sendWhatsAppTemplate(env, to, template, []);
+        return json({ ok: true, providerMessageId });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return json({ ok: false, error: message }, 502);
+      }
     }
 
     return json({ error: "Not found" }, 404);
@@ -118,5 +123,5 @@ async function handleLogs(request: Request, env: Env): Promise<Response> {
 function isAuthorized(request: Request, env: Env): boolean {
   if (!env.ADMIN_API_KEY) return false;
   const provided = request.headers.get("x-admin-api-key") || new URL(request.url).searchParams.get("key");
-  return provided === env.ADMIN_API_KEY;
+  return Boolean(provided && provided.trim() === env.ADMIN_API_KEY.trim());
 }

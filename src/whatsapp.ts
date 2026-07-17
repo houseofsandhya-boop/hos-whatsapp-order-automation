@@ -13,7 +13,7 @@ export async function sendWhatsAppTemplate(
 ): Promise<string | null> {
   const graphVersion = env.WHATSAPP_GRAPH_VERSION || "v23.0";
   const language = env.WHATSAPP_TEMPLATE_LANGUAGE || "en_US";
-  const url = `https://graph.facebook.com/${graphVersion}/${env.WHATSAPP_PHONE_NUMBER_ID}/messages`;
+  const url = `https://graph.facebook.com/${graphVersion}/${env.WHATSAPP_PHONE_NUMBER_ID.trim()}/messages`;
 
   const parameters: TemplateParameter[] = params.map((text) => ({ type: "text", text }));
   const payload = {
@@ -37,7 +37,7 @@ export async function sendWhatsAppTemplate(
   const response = await fetch(url, {
     method: "POST",
     headers: {
-      "Authorization": `Bearer ${env.WHATSAPP_TOKEN}`,
+      "Authorization": `Bearer ${env.WHATSAPP_TOKEN.trim()}`,
       "Content-Type": "application/json"
     },
     body: JSON.stringify(payload)
