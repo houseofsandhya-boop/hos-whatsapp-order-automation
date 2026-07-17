@@ -3,6 +3,7 @@ import { processDueJobs } from "./jobs";
 import { fetchShopifyOrder, verifyShopifyWebhook } from "./shopify";
 import type { Env, ShopifyFulfillmentPayload, ShopifyOrderPayload } from "./types";
 import { asOrderId, firstPresent, json } from "./utils";
+import { sendWhatsAppTemplate } from "./whatsapp";
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -24,6 +25,15 @@ export default {
       if (!isAuthorized(request, env)) return json({ error: "Unauthorized" }, 401);
       const stats = await processDueJobs(env);
       return json({ ok: true, stats });
+    }
+
+    if (request.method === "POST" && url.pathname === "/admin/test-whatsapp") {
+      if (!isAuthorized(request, env)) return json({ error: "Unauthorized" }, 401);
+      const to = url.searchParams.get("to");
+      const template = url.searchParams.get("template") || "hello_world";
+      if (!to) return json({ error: "Missing ?to=91XXXXXXXXXX" }, 400);
+      const providerMessageId = await sendWhatsAppTemplate(env, to, template, []);
+      return json({ ok: true, providerMessageId });
     }
 
     return json({ error: "Not found" }, 404);
