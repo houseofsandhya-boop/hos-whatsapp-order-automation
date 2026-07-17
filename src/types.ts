@@ -12,6 +12,9 @@ export interface Env {
   REMINDER_4D_TEMPLATE?: string;
   REMINDER_6D_TEMPLATE?: string;
   SHIPPED_TEMPLATE?: string;
+  REMINDER_2D_DELAY_MINUTES?: string;
+  REMINDER_4D_DELAY_MINUTES?: string;
+  REMINDER_6D_DELAY_MINUTES?: string;
   ADMIN_API_KEY?: string;
 }
 

@@ -1,5 +1,5 @@
 import type { Env, JobRecord, JobType, OrderRecord, ShopifyOrderPayload } from "./types";
-import { addDays, asOrderId, nowIso } from "./utils";
+import { addDays, addMinutes, asOrderId, nowIso } from "./utils";
 import { extractOrderPhone } from "./shopify";
 
 const REMINDER_DAYS: Array<[JobType, number]> = [
@@ -49,9 +49,29 @@ export async function scheduleReminderJobs(env: Env, orderId: string, baseDate =
     env.DB.prepare(
       `INSERT OR IGNORE INTO message_jobs (order_id, job_type, due_at, status, created_at, updated_at)
        VALUES (?, ?, ?, 'pending', ?, ?)`
-    ).bind(orderId, jobType, addDays(baseDate, days), timestamp, timestamp)
+    ).bind(orderId, jobType, dueAtForJob(env, jobType, days, baseDate), timestamp, timestamp)
   );
   await env.DB.batch(statements);
+}
+
+function dueAtForJob(env: Env, jobType: JobType, fallbackDays: number, baseDate: Date): string {
+  const minutes = delayMinutesForJob(env, jobType);
+  if (minutes && minutes > 0) return addMinutes(baseDate, minutes);
+  return addDays(baseDate, fallbackDays);
+}
+
+function delayMinutesForJob(env: Env, jobType: JobType): number | null {
+  const raw =
+    jobType === "reminder_2d"
+      ? env.REMINDER_2D_DELAY_MINUTES
+      : jobType === "reminder_4d"
+        ? env.REMINDER_4D_DELAY_MINUTES
+        : jobType === "reminder_6d"
+          ? env.REMINDER_6D_DELAY_MINUTES
+          : null;
+  if (!raw) return null;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : null;
 }
 
 export async function getOrder(env: Env, orderId: string): Promise<OrderRecord | null> {

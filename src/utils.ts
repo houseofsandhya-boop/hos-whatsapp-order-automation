@@ -15,6 +15,10 @@ export function addDays(date: Date, days: number): string {
   return copy.toISOString();
 }
 
+export function addMinutes(date: Date, minutes: number): string {
+  return new Date(date.getTime() + minutes * 60 * 1000).toISOString();
+}
+
 export function normalizePhone(input?: string | null): string | null {
   if (!input) return null;
   const digits = input.replace(/\D/g, "");
