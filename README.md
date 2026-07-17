@@ -128,6 +128,13 @@ Test Shopify API credentials without sending any WhatsApp message:
 GET /admin/test-shopify?key=YOUR_ADMIN_API_KEY&orderId=SHOPIFY_ORDER_ID
 ```
 
+Create Shopify webhook subscriptions for this Worker:
+
+```text
+POST /admin/setup-shopify-webhooks
+Header: x-admin-api-key: YOUR_ADMIN_API_KEY
+```
+
 ## Notes
 
 - Phone numbers are normalized for India. A 10-digit number becomes `91XXXXXXXXXX`.

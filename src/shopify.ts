@@ -1,6 +1,34 @@
 import type { Env, ShopifyOrderPayload } from "./types";
 import { firstPresent, normalizePhone } from "./utils";
 
+interface ShopifyWebhook {
+  id: number;
+  topic: string;
+  address: string;
+}
+
+interface ShopifyWebhookListResponse {
+  webhooks?: ShopifyWebhook[];
+}
+
+interface ShopifyWebhookCreateResponse {
+  webhook?: ShopifyWebhook;
+}
+
+export interface ShopifyWebhookSetupResult {
+  topic: string;
+  address: string;
+  status: "exists" | "created" | "failed";
+  id?: number;
+  error?: string;
+}
+
+const WEBHOOK_SUBSCRIPTIONS = [
+  { topic: "orders/create", path: "/webhooks/shopify/orders-create" },
+  { topic: "orders/cancelled", path: "/webhooks/shopify/orders-cancelled" },
+  { topic: "fulfillments/create", path: "/webhooks/shopify/fulfillments-create" }
+];
+
 export async function verifyShopifyWebhook(request: Request, rawBody: string, env: Env): Promise<boolean> {
   const hmacHeader = request.headers.get("x-shopify-hmac-sha256");
   if (!hmacHeader || !env.SHOPIFY_WEBHOOK_SECRET) return false;
@@ -61,6 +89,67 @@ export async function fetchShopifyOrder(env: Env, orderId: string): Promise<Shop
   }
   const body = (await response.json()) as { order?: ShopifyOrderPayload };
   return body.order ?? null;
+}
+
+export async function ensureShopifyWebhooks(env: Env, baseUrl: string): Promise<ShopifyWebhookSetupResult[]> {
+  const version = env.SHOPIFY_API_VERSION || "2026-07";
+  const shop = env.SHOPIFY_STORE_DOMAIN.replace(/^https?:\/\//, "");
+  const accessToken = await getShopifyAccessToken(env, shop);
+  const apiBase = `https://${shop}/admin/api/${version}`;
+  const headers = {
+    "X-Shopify-Access-Token": accessToken,
+    "Accept": "application/json",
+    "Content-Type": "application/json"
+  };
+
+  const listResponse = await fetch(`${apiBase}/webhooks.json?limit=250`, { headers });
+  const listText = await listResponse.text();
+  if (!listResponse.ok) {
+    throw new Error(`Shopify webhook list failed: ${listResponse.status} ${listText}`);
+  }
+
+  const existing = (JSON.parse(listText) as ShopifyWebhookListResponse).webhooks ?? [];
+  const results: ShopifyWebhookSetupResult[] = [];
+
+  for (const subscription of WEBHOOK_SUBSCRIPTIONS) {
+    const address = new URL(subscription.path, baseUrl).toString();
+    const alreadyPresent = existing.find(
+      (webhook) => webhook.topic === subscription.topic && webhook.address === address
+    );
+
+    if (alreadyPresent) {
+      results.push({ topic: subscription.topic, address, status: "exists", id: alreadyPresent.id });
+      continue;
+    }
+
+    const createResponse = await fetch(`${apiBase}/webhooks.json`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        webhook: {
+          topic: subscription.topic,
+          address,
+          format: "json"
+        }
+      })
+    });
+    const createText = await createResponse.text();
+
+    if (!createResponse.ok) {
+      results.push({
+        topic: subscription.topic,
+        address,
+        status: "failed",
+        error: `Shopify webhook create failed: ${createResponse.status} ${createText}`
+      });
+      continue;
+    }
+
+    const created = (JSON.parse(createText) as ShopifyWebhookCreateResponse).webhook;
+    results.push({ topic: subscription.topic, address, status: "created", id: created?.id });
+  }
+
+  return results;
 }
 
 export async function getShopifyAccessToken(env: Env, shopDomain?: string): Promise<string> {

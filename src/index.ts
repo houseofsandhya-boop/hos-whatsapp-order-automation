@@ -1,6 +1,6 @@
 import { createImmediateJob, getOrder, logWebhook, markOrderShipped, scheduleReminderJobs, upsertOrder } from "./db";
 import { processDueJobs } from "./jobs";
-import { extractOrderPhone, fetchShopifyOrder, verifyShopifyWebhook } from "./shopify";
+import { ensureShopifyWebhooks, extractOrderPhone, fetchShopifyOrder, verifyShopifyWebhook } from "./shopify";
 import type { Env, ShopifyFulfillmentPayload, ShopifyOrderPayload } from "./types";
 import { asOrderId, firstPresent, json } from "./utils";
 import { sendWhatsAppTemplate } from "./whatsapp";
@@ -25,6 +25,18 @@ export default {
       if (!isAuthorized(request, env)) return json({ error: "Unauthorized" }, 401);
       const stats = await processDueJobs(env);
       return json({ ok: true, stats });
+    }
+
+    if (request.method === "POST" && url.pathname === "/admin/setup-shopify-webhooks") {
+      if (!isAuthorized(request, env)) return json({ error: "Unauthorized" }, 401);
+      try {
+        const results = await ensureShopifyWebhooks(env, url.origin);
+        const failed = results.filter((result) => result.status === "failed");
+        return json({ ok: failed.length === 0, results }, failed.length ? 502 : 200);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return json({ ok: false, error: message }, 502);
+      }
     }
 
     if (request.method === "POST" && url.pathname === "/admin/test-whatsapp") {
