@@ -9,7 +9,7 @@ export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
 
-    if (request.method === "GET" && url.pathname === "/health") {
+    if (request.method === "GET" && (url.pathname === "/" || url.pathname === "/health")) {
       return json({ ok: true, service: "hos-whatsapp-order-automation" });
     }
 
