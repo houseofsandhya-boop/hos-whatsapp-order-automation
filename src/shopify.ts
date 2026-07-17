@@ -64,9 +64,8 @@ export async function fetchShopifyOrder(env: Env, orderId: string): Promise<Shop
 }
 
 export async function getShopifyAccessToken(env: Env, shopDomain?: string): Promise<string> {
-  if (env.SHOPIFY_ADMIN_TOKEN?.trim()) return env.SHOPIFY_ADMIN_TOKEN.trim();
-
   if (!env.SHOPIFY_CLIENT_ID?.trim() || !env.SHOPIFY_CLIENT_SECRET?.trim()) {
+    if (env.SHOPIFY_ADMIN_TOKEN?.trim()) return env.SHOPIFY_ADMIN_TOKEN.trim();
     throw new Error("Missing Shopify credentials. Set SHOPIFY_ADMIN_TOKEN or SHOPIFY_CLIENT_ID and SHOPIFY_CLIENT_SECRET.");
   }
 
