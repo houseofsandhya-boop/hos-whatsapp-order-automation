@@ -23,6 +23,33 @@ export interface ShopifyWebhookSetupResult {
   error?: string;
 }
 
+interface ShopifyOrderListResponse {
+  orders?: ShopifyOrderPayload[];
+}
+
+interface ShopifyGraphqlOrderNode {
+  legacyResourceId: string;
+  name?: string;
+  phone?: string | null;
+  displayFulfillmentStatus?: string | null;
+  cancelledAt?: string | null;
+  shippingAddress?: {
+    phone?: string | null;
+  } | null;
+  billingAddress?: {
+    phone?: string | null;
+  } | null;
+}
+
+interface ShopifyGraphqlResponse {
+  data?: {
+    orders?: {
+      nodes?: ShopifyGraphqlOrderNode[];
+    };
+  };
+  errors?: unknown;
+}
+
 const WEBHOOK_SUBSCRIPTIONS = [
   { topic: "orders/create", path: "/webhooks/shopify/orders-create" },
   { topic: "orders/cancelled", path: "/webhooks/shopify/orders-cancelled" },
@@ -91,6 +118,113 @@ export async function fetchShopifyOrder(env: Env, orderId: string): Promise<Shop
   return body.order ?? null;
 }
 
+export async function listRecentShopifyOrders(env: Env, limit = 50): Promise<ShopifyOrderPayload[]> {
+  const version = env.SHOPIFY_API_VERSION || "2026-07";
+  const shop = env.SHOPIFY_STORE_DOMAIN.replace(/^https?:\/\//, "");
+  const accessToken = await getShopifyAccessToken(env, shop);
+  const fields = "id,name,phone,fulfillment_status,cancelled_at,customer,shipping_address,billing_address,created_at";
+  const url = `https://${shop}/admin/api/${version}/orders.json?status=any&limit=${limit}&fields=${fields}`;
+  const response = await fetch(url, {
+    headers: {
+      "X-Shopify-Access-Token": accessToken,
+      "Accept": "application/json"
+    }
+  });
+
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(`Shopify order list failed: ${response.status} ${text}`);
+  }
+
+  return (JSON.parse(text) as ShopifyOrderListResponse).orders ?? [];
+}
+
+export async function findShopifyOrderByName(env: Env, orderName: string): Promise<ShopifyOrderPayload | null> {
+  const normalized = orderName.startsWith("#") ? orderName : `#${orderName}`;
+  const graphOrder = await findShopifyOrderByGraphql(env, `name:${normalized}`);
+  if (graphOrder) return graphOrder;
+
+  const orders = await listRecentShopifyOrders(env);
+  return orders.find((order) => order.name === normalized) ?? null;
+}
+
+async function findShopifyOrderByGraphql(env: Env, searchQuery: string): Promise<ShopifyOrderPayload | null> {
+  const version = env.SHOPIFY_API_VERSION || "2026-07";
+  const shop = env.SHOPIFY_STORE_DOMAIN.replace(/^https?:\/\//, "");
+  const accessToken = await getShopifyAccessToken(env, shop);
+  const query = `
+    query FindOrder($query: String!) {
+      orders(first: 1, query: $query) {
+        nodes {
+          legacyResourceId
+          name
+          phone
+          displayFulfillmentStatus
+          cancelledAt
+          shippingAddress {
+            phone
+          }
+          billingAddress {
+            phone
+          }
+        }
+      }
+    }
+  `;
+
+  const response = await fetch(`https://${shop}/admin/api/${version}/graphql.json`, {
+    method: "POST",
+    headers: {
+      "X-Shopify-Access-Token": accessToken,
+      "Content-Type": "application/json",
+      "Accept": "application/json"
+    },
+    body: JSON.stringify({ query, variables: { query: searchQuery } })
+  });
+
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(`Shopify order search failed: ${response.status} ${text}`);
+  }
+
+  const body = JSON.parse(text) as ShopifyGraphqlResponse;
+  if (body.errors) {
+    throw new Error(`Shopify order search returned errors: ${JSON.stringify(body.errors)}`);
+  }
+
+  const order = body.data?.orders?.nodes?.[0];
+  if (!order) return null;
+
+  return {
+    id: order.legacyResourceId,
+    name: order.name,
+    phone: order.phone,
+    fulfillment_status: order.displayFulfillmentStatus?.toLowerCase() ?? null,
+    cancelled_at: order.cancelledAt ?? null,
+    shipping_address: order.shippingAddress,
+    billing_address: order.billingAddress
+  };
+}
+
+export async function listShopifyWebhooks(env: Env): Promise<ShopifyWebhook[]> {
+  const version = env.SHOPIFY_API_VERSION || "2026-07";
+  const shop = env.SHOPIFY_STORE_DOMAIN.replace(/^https?:\/\//, "");
+  const accessToken = await getShopifyAccessToken(env, shop);
+  const response = await fetch(`https://${shop}/admin/api/${version}/webhooks.json?limit=250`, {
+    headers: {
+      "X-Shopify-Access-Token": accessToken,
+      "Accept": "application/json"
+    }
+  });
+
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(`Shopify webhook list failed: ${response.status} ${text}`);
+  }
+
+  return (JSON.parse(text) as ShopifyWebhookListResponse).webhooks ?? [];
+}
+
 export async function ensureShopifyWebhooks(env: Env, baseUrl: string): Promise<ShopifyWebhookSetupResult[]> {
   const version = env.SHOPIFY_API_VERSION || "2026-07";
   const shop = env.SHOPIFY_STORE_DOMAIN.replace(/^https?:\/\//, "");
@@ -102,13 +236,7 @@ export async function ensureShopifyWebhooks(env: Env, baseUrl: string): Promise<
     "Content-Type": "application/json"
   };
 
-  const listResponse = await fetch(`${apiBase}/webhooks.json?limit=250`, { headers });
-  const listText = await listResponse.text();
-  if (!listResponse.ok) {
-    throw new Error(`Shopify webhook list failed: ${listResponse.status} ${listText}`);
-  }
-
-  const existing = (JSON.parse(listText) as ShopifyWebhookListResponse).webhooks ?? [];
+  const existing = await listShopifyWebhooks(env);
   const results: ShopifyWebhookSetupResult[] = [];
 
   for (const subscription of WEBHOOK_SUBSCRIPTIONS) {

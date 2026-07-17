@@ -1,6 +1,13 @@
 import { createImmediateJob, getOrder, logWebhook, markOrderShipped, scheduleReminderJobs, upsertOrder } from "./db";
 import { processDueJobs } from "./jobs";
-import { ensureShopifyWebhooks, extractOrderPhone, fetchShopifyOrder, verifyShopifyWebhook } from "./shopify";
+import {
+  ensureShopifyWebhooks,
+  extractOrderPhone,
+  fetchShopifyOrder,
+  findShopifyOrderByName,
+  listShopifyWebhooks,
+  verifyShopifyWebhook
+} from "./shopify";
 import type { Env, ShopifyFulfillmentPayload, ShopifyOrderPayload } from "./types";
 import { asOrderId, firstPresent, json } from "./utils";
 import { sendWhatsAppTemplate } from "./whatsapp";
@@ -39,6 +46,17 @@ export default {
       }
     }
 
+    if (request.method === "GET" && url.pathname === "/admin/shopify-webhooks") {
+      if (!isAuthorized(request, env)) return json({ error: "Unauthorized" }, 401);
+      try {
+        const webhooks = await listShopifyWebhooks(env);
+        return json({ ok: true, webhooks });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return json({ ok: false, error: message }, 502);
+      }
+    }
+
     if (request.method === "POST" && url.pathname === "/admin/test-whatsapp") {
       if (!isAuthorized(request, env)) return json({ error: "Unauthorized" }, 401);
       const to = url.searchParams.get("to");
@@ -70,6 +88,37 @@ export default {
             phone: extractOrderPhone(order)
           }
         });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return json({ ok: false, error: message }, 502);
+      }
+    }
+
+    if (request.method === "GET" && url.pathname === "/admin/find-shopify-order") {
+      if (!isAuthorized(request, env)) return json({ error: "Unauthorized" }, 401);
+      const name = url.searchParams.get("name");
+      if (!name) return json({ error: "Missing ?name=5492" }, 400);
+      try {
+        const order = await findShopifyOrderByName(env, name);
+        if (!order) return json({ ok: false, error: "Order not found in recent Shopify orders" }, 404);
+        return json({ ok: true, order: summarizeOrder(order) });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return json({ ok: false, error: message }, 502);
+      }
+    }
+
+    if (request.method === "POST" && url.pathname === "/admin/sync-shopify-order") {
+      if (!isAuthorized(request, env)) return json({ error: "Unauthorized" }, 401);
+      const orderId = url.searchParams.get("orderId");
+      const name = url.searchParams.get("name");
+      if (!orderId && !name) return json({ error: "Missing ?orderId=SHOPIFY_ORDER_ID or ?name=5492" }, 400);
+      try {
+        const order = orderId ? await fetchShopifyOrder(env, orderId) : await findShopifyOrderByName(env, name || "");
+        if (!order) return json({ ok: false, error: "Order not found" }, 404);
+        const record = await upsertOrder(env, order);
+        await scheduleReminderJobs(env, record.order_id, new Date());
+        return json({ ok: true, order: summarizeOrder(order), scheduled: true });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         return json({ ok: false, error: message }, 502);
@@ -153,6 +202,16 @@ async function handleLogs(request: Request, env: Env): Promise<Response> {
     .bind(limit)
     .all();
   return json({ logs: logs.results ?? [] });
+}
+
+function summarizeOrder(order: ShopifyOrderPayload) {
+  return {
+    id: order.id,
+    name: order.name,
+    fulfillment_status: order.fulfillment_status ?? null,
+    cancelled_at: order.cancelled_at ?? null,
+    phone: extractOrderPhone(order)
+  };
 }
 
 function isAuthorized(request: Request, env: Env): boolean {

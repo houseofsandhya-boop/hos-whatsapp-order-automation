@@ -128,11 +128,24 @@ Test Shopify API credentials without sending any WhatsApp message:
 GET /admin/test-shopify?key=YOUR_ADMIN_API_KEY&orderId=SHOPIFY_ORDER_ID
 ```
 
+Find and backfill a Shopify order by order number:
+
+```text
+GET  /admin/find-shopify-order?key=YOUR_ADMIN_API_KEY&name=5492
+POST /admin/sync-shopify-order?key=YOUR_ADMIN_API_KEY&name=5492
+```
+
 Create Shopify webhook subscriptions for this Worker:
 
 ```text
 POST /admin/setup-shopify-webhooks
 Header: x-admin-api-key: YOUR_ADMIN_API_KEY
+```
+
+List Shopify webhook subscriptions:
+
+```text
+GET /admin/shopify-webhooks?key=YOUR_ADMIN_API_KEY
 ```
 
 ## Notes
