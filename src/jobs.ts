@@ -74,6 +74,8 @@ async function processJob(env: Env, job: JobRecord): Promise<"sent" | "skipped" 
 }
 
 function templateForJob(env: Env, jobType: JobType): string {
+  if (env.FORCE_WHATSAPP_TEMPLATE?.trim()) return env.FORCE_WHATSAPP_TEMPLATE.trim();
+
   switch (jobType) {
     case "reminder_2d":
       return env.REMINDER_2D_TEMPLATE || "order_processing_update";

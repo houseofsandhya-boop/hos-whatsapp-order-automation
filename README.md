@@ -148,6 +148,14 @@ List Shopify webhook subscriptions:
 GET /admin/shopify-webhooks?key=YOUR_ADMIN_API_KEY
 ```
 
+Temporary test mode:
+
+```bash
+wrangler secret put FORCE_WHATSAPP_TEMPLATE
+```
+
+Set it to `hello_world` to force all job sends through Meta's built-in test template. Remove it after testing so approved production templates are used again.
+
 ## Notes
 
 - Phone numbers are normalized for India. A 10-digit number becomes `91XXXXXXXXXX`.
