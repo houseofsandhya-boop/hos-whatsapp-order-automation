@@ -134,7 +134,8 @@ export default {
 };
 
 async function handleShopifyWebhook(request: Request, env: Env, ctx: ExecutionContext, path: string): Promise<Response> {
-  const rawBody = await request.text();
+  const rawBody = await request.arrayBuffer();
+  const rawText = new TextDecoder().decode(rawBody);
   const topic = path.split("/").pop() || "unknown";
   const shopDomain = request.headers.get("x-shopify-shop-domain");
 
@@ -145,7 +146,7 @@ async function handleShopifyWebhook(request: Request, env: Env, ctx: ExecutionCo
   }
 
   try {
-    const payload = JSON.parse(rawBody) as ShopifyOrderPayload | ShopifyFulfillmentPayload;
+    const payload = JSON.parse(rawText) as ShopifyOrderPayload | ShopifyFulfillmentPayload;
 
     if (topic === "orders-create") {
       const order = payload as ShopifyOrderPayload;

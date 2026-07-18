@@ -56,33 +56,48 @@ const WEBHOOK_SUBSCRIPTIONS = [
   { topic: "fulfillments/create", path: "/webhooks/shopify/fulfillments-create" }
 ];
 
-export async function verifyShopifyWebhook(request: Request, rawBody: string, env: Env): Promise<boolean> {
+export async function verifyShopifyWebhook(request: Request, rawBody: ArrayBuffer, env: Env): Promise<boolean> {
   const hmacHeader = request.headers.get("x-shopify-hmac-sha256");
-  if (!hmacHeader || !env.SHOPIFY_WEBHOOK_SECRET) return false;
+  if (!hmacHeader) return false;
 
-  const key = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(env.SHOPIFY_WEBHOOK_SECRET),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"]
-  );
-  const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(rawBody));
-  const computed = arrayBufferToBase64(signature);
-  return timingSafeEqual(computed, hmacHeader);
+  const secrets = [env.SHOPIFY_WEBHOOK_SECRET, env.SHOPIFY_CLIENT_SECRET]
+    .map((secret) => secret?.trim())
+    .filter((secret): secret is string => Boolean(secret));
+  if (!secrets.length) return false;
+
+  const expected = base64ToBytes(hmacHeader.trim());
+  if (!expected) return false;
+
+  for (const secret of new Set(secrets)) {
+    const key = await crypto.subtle.importKey(
+      "raw",
+      new TextEncoder().encode(secret),
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"]
+    );
+    const signature = await crypto.subtle.sign("HMAC", key, rawBody);
+    if (timingSafeEqualBytes(new Uint8Array(signature), expected)) return true;
+  }
+
+  return false;
 }
 
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  let binary = "";
-  const bytes = new Uint8Array(buffer);
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary);
+function base64ToBytes(value: string): Uint8Array | null {
+  try {
+    const binary = atob(value);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes;
+  } catch {
+    return null;
+  }
 }
 
-function timingSafeEqual(a: string, b: string): boolean {
+function timingSafeEqualBytes(a: Uint8Array, b: Uint8Array): boolean {
   if (a.length !== b.length) return false;
   let result = 0;
-  for (let i = 0; i < a.length; i++) result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  for (let i = 0; i < a.length; i++) result |= a[i] ^ b[i];
   return result === 0;
 }
 
